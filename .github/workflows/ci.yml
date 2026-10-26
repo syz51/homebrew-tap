@@ -31,6 +31,11 @@ jobs:
           persist-credentials: false
       - name: Install this checkout as a tap
         run: brew tap --custom-remote syz51/tap "$GITHUB_WORKSPACE"
+      - name: Trust the reviewed formula when supported
+        run: |
+          if brew help trust >/dev/null 2>&1; then
+            brew trust --formula syz51/tap/codex-commit
+          fi
       - name: Install published native release
         run: brew install syz51/tap/codex-commit
       - name: Test installed command

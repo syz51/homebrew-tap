@@ -3,8 +3,12 @@
 Homebrew packages for [syz51](https://github.com/syz51)'s command-line tools.
 
 ```sh
+brew tap syz51/tap
+brew trust --formula syz51/tap/codex-commit
 brew install syz51/tap/codex-commit
 ```
+
+The trust command is required by Homebrew 7 for third-party formulae. Omit that line on older Homebrew versions that do not provide `brew trust`. It trusts only this formula.
 
 `codex-commit` is available as a native executable for Apple Silicon and Intel Macs. It requires Git and an authenticated [Codex CLI](https://developers.openai.com/codex/cli/). Install Codex CLI separately and run `codex login` before use.
 
