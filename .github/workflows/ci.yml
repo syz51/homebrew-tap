@@ -1,0 +1,41 @@
+name: Homebrew
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    name: Homebrew (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel]
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install this checkout as a tap
+        run: brew tap --custom-remote syz51/tap "$GITHUB_WORKSPACE"
+      - name: Install published native release
+        run: brew install syz51/tap/codex-commit
+      - name: Test installed command
+        run: brew test syz51/tap/codex-commit
+      - name: Check formula style
+        run: brew style syz51/tap/codex-commit
+      - name: Audit formula
+        run: brew audit --strict --online syz51/tap/codex-commit
