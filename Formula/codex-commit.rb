@@ -1,7 +1,6 @@
 class CodexCommit < Formula
   desc "Commit Git changes with Codex Luna at Max reasoning, with optional push"
   homepage "https://github.com/syz51/codex-commit"
-  version "0.2.0"
   license "MIT"
 
   depends_on "git"
