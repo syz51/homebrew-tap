@@ -12,6 +12,8 @@ The trust command is required by Homebrew 7 for third-party formulae. Omit that 
 
 `codex-commit` is available as a native executable for Apple Silicon and Intel Macs. It requires Git and an authenticated [Codex CLI](https://developers.openai.com/codex/cli/). Install Codex CLI separately and run `codex login` before use.
 
+The formula uses Git already available on `PATH`, including macOS Command Line Tools Git, without requiring Homebrew's Git package. `codex-commit` checks for Git when it runs and reports an error if it is missing.
+
 ```sh
 codex-commit         # commit existing changes
 codex-commit --push  # also push

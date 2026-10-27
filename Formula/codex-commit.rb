@@ -3,7 +3,6 @@ class CodexCommit < Formula
   homepage "https://github.com/syz51/codex-commit"
   license "MIT"
 
-  depends_on "git"
   depends_on :macos
 
   on_macos do
@@ -23,6 +22,7 @@ class CodexCommit < Formula
 
   def caveats
     <<~EOS
+      Git must be available on PATH; macOS Command Line Tools Git is supported.
       Install Codex CLI separately and run `codex login` before using codex-commit.
       The default mode grants Codex full local command access. Use --push to enable pushing.
     EOS
@@ -31,10 +31,12 @@ class CodexCommit < Formula
   test do
     assert_match "codex-commit 0.2.0", shell_output("#{bin}/codex-commit --version")
     assert_match "Usage:", shell_output("#{bin}/codex-commit --help")
-    system "git", "init", "-b", "main"
-    output = shell_output("#{bin}/codex-commit --dry-run")
-    assert_match "Push: disabled", output
-    assert_match "Model: gpt-6-luna", output
-    assert_match "Reasoning: max", output
+    with_env(PATH: "/usr/bin:/bin") do
+      system "git", "init", "-b", "main"
+      output = shell_output("#{bin}/codex-commit --dry-run")
+      assert_match "Push: disabled", output
+      assert_match "Model: gpt-6-luna", output
+      assert_match "Reasoning: max", output
+    end
   end
 end
