@@ -1,0 +1,225 @@
+name: Update published releases
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-published-releases
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Verify release and generate formula
+    if: github.repository == 'syz51/homebrew-tap' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      changed: ${{ steps.generate.outputs.changed }}
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: tap
+          persist-credentials: false
+      - name: Find the latest immutable stable release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api repos/syz51/codex-commit/releases/latest > "$RUNNER_TEMP/release.json"
+          jq -e '.immutable == true and .draft == false and .prerelease == false' "$RUNNER_TEMP/release.json"
+          tag="$(jq -r .tag_name "$RUNNER_TEMP/release.json")"
+          [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          version="${tag#v}"
+          current="$(sed -nE 's@.*releases/download/v([0-9]+\.[0-9]+\.[0-9]+)/.*@\1@p' tap/Formula/codex-commit.rb | sort -u)"
+          [[ "$current" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$(printf '%s\n%s\n' "$current" "$version" | sort -V | tail -1)" = "$version" || {
+            echo 'Refusing to downgrade the formula to an older release' >&2
+            exit 1
+          }
+          gh release verify "$tag" --repo syz51/codex-commit --format json > "$RUNNER_TEMP/attestation.json"
+          jq -e --arg tag "$tag" --arg id "$(jq -r .id "$RUNNER_TEMP/release.json")" '
+            .verificationResult.statement.predicate
+            | .repository == "syz51/codex-commit" and .tag == $tag and .databaseId == $id
+          ' "$RUNNER_TEMP/attestation.json"
+          printf 'tag=%s\nversion=%s\n' "$tag" "$version" >> "$GITHUB_OUTPUT"
+          if test "$current" = "$version"; then
+            echo 'The tap already has this release; preserving its current formula.'
+            echo 'update=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'update=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download and verify the exact release assets
+        if: steps.release.outputs.update == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          arm="codex-commit-$RELEASE_TAG-aarch64-apple-darwin.tar.gz"
+          intel="codex-commit-$RELEASE_TAG-x86_64-apple-darwin.tar.gz"
+          jq -e --arg arm "$arm" --arg intel "$intel" '
+            [.assets[].name] | sort == (["SHA256SUMS", $arm, $intel] | sort)
+          ' "$RUNNER_TEMP/release.json"
+          mkdir "$RUNNER_TEMP/dist"
+          gh release download "$RELEASE_TAG" --repo syz51/codex-commit --dir "$RUNNER_TEMP/dist" \
+            --pattern "$arm" --pattern "$intel" --pattern SHA256SUMS
+          for asset in "$arm" "$intel" SHA256SUMS; do
+            gh release verify-asset "$RELEASE_TAG" "$RUNNER_TEMP/dist/$asset" --repo syz51/codex-commit
+          done
+          # Validate the checksum filenames before letting sha256sum read them.
+          test "$(wc -l < "$RUNNER_TEMP/dist/SHA256SUMS")" -eq 2
+          while IFS= read -r line; do
+            [[ "$line" =~ ^[[:xdigit:]]{64}\ \ (.+)$ ]]
+            file="${BASH_REMATCH[1]}"
+            test "$file" = "$arm" || test "$file" = "$intel"
+          done < "$RUNNER_TEMP/dist/SHA256SUMS"
+          (cd "$RUNNER_TEMP/dist" && sha256sum --strict --check SHA256SUMS)
+      - name: Check out the attested upstream tag
+        if: steps.release.outputs.update == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: syz51/codex-commit
+          ref: ${{ steps.release.outputs.tag }}
+          fetch-depth: 0
+          path: upstream
+          persist-credentials: false
+      - name: Verify the source object and install Rust
+        if: steps.release.outputs.update == 'true'
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          attested="$(jq -er --arg uri "pkg:github/syz51/codex-commit@$RELEASE_TAG" '
+            [.verificationResult.statement.subject[] | select(.uri == $uri) | .digest.sha1]
+            | if length == 1 then .[0] else error("missing or duplicate source object") end
+          ' "$RUNNER_TEMP/attestation.json")"
+          test "$(git -C upstream rev-parse "refs/tags/$RELEASE_TAG")" = "$attested"
+          git -C upstream merge-base --is-ancestor HEAD refs/remotes/origin/main
+          rustup toolchain install 1.99.1 --profile minimal
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/cargo-target" >> "$GITHUB_ENV"
+      - name: Generate the release formula with Rust
+        id: generate
+        if: steps.release.outputs.update == 'true'
+        working-directory: upstream
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo xtask verify-release-tag --tag "$RELEASE_TAG"
+          cargo xtask homebrew --version "$RELEASE_VERSION" \
+            --checksums "$RUNNER_TEMP/dist/SHA256SUMS" --output "$RUNNER_TEMP/generated/codex-commit.rb"
+          if cmp -s "$RUNNER_TEMP/generated/codex-commit.rb" "$GITHUB_WORKSPACE/tap/Formula/codex-commit.rb"; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.generate.outputs.changed == 'true'
+        with:
+          name: verified-formula
+          path: ${{ runner.temp }}/generated/codex-commit.rb
+          if-no-files-found: error
+          retention-days: 7
+
+  update:
+    name: Open and merge verified formula update
+    needs: prepare
+    if: needs.prepare.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: verified-formula
+          path: generated
+      - name: Update the release branch and enable protected auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$RELEASE_VERSION" = "${RELEASE_TAG#v}"
+          branch="release/$RELEASE_TAG"
+          git fetch origin main
+          if git show origin/main:Formula/codex-commit.rb | cmp -s - generated/codex-commit.rb; then
+            echo 'This exact formula has already been merged.'
+            exit 0
+          fi
+          current="$(git show origin/main:Formula/codex-commit.rb | sed -nE 's@.*releases/download/v([0-9]+\.[0-9]+\.[0-9]+)/.*@\1@p' | sort -u)"
+          [[ "$current" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$current" != "$RELEASE_VERSION" || { echo 'Same release has a different formula; refusing to overwrite it' >&2; exit 1; }
+          test "$(printf '%s\n%s\n' "$current" "$RELEASE_VERSION" | sort -V | tail -1)" = "$RELEASE_VERSION" || {
+            echo 'Refusing a stale release update' >&2; exit 1;
+          }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          gh auth setup-git --hostname github.com
+          remote_branch="$(git ls-remote --heads origin "refs/heads/$branch")"
+          if test -n "$remote_branch"; then
+            git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch"
+            git show "origin/$branch:Formula/codex-commit.rb" | cmp -s - generated/codex-commit.rb || {
+              echo 'Release branch contains a different formula; refusing to overwrite it' >&2; exit 1;
+            }
+            test "$(git diff --name-only "origin/main...origin/$branch")" = 'Formula/codex-commit.rb' || {
+              echo 'Release branch contains unexpected changes' >&2; exit 1;
+            }
+            git switch -c "$branch" "origin/$branch"
+            git merge --no-edit origin/main
+          else
+            git switch -c "$branch" origin/main
+            cp generated/codex-commit.rb Formula/codex-commit.rb
+            git add Formula/codex-commit.rb
+            git commit -m "Update codex-commit to $RELEASE_TAG"
+          fi
+          git push origin "HEAD:refs/heads/$branch"
+          head="$(git rev-parse HEAD)"
+          gh pr list --head "$branch" --base main --state all --json number,state > "$RUNNER_TEMP/pull-requests.json"
+          test "$(jq length "$RUNNER_TEMP/pull-requests.json")" -le 1 || { echo 'Multiple release PRs exist' >&2; exit 1; }
+          if test "$(jq length "$RUNNER_TEMP/pull-requests.json")" -eq 1; then
+            test "$(jq -r '.[0].state' "$RUNNER_TEMP/pull-requests.json")" = OPEN || {
+              echo 'Release PR was closed without matching main; manual resolution is required' >&2; exit 1;
+            }
+            pr="$(jq -r '.[0].number' "$RUNNER_TEMP/pull-requests.json")"
+          else
+            printf 'Update codex-commit to [%s](https://github.com/syz51/codex-commit/releases/tag/%s).\n\nBoth archives and SHA256SUMS were verified against GitHub release attestations. The formula was generated from the immutable release source. Native Apple Silicon and Intel installation, test, style, and audit checks must pass before automatic merging.\n' \
+              "$RELEASE_TAG" "$RELEASE_TAG" > "$RUNNER_TEMP/pr-body.md"
+            gh pr create --head "$branch" --base main --title "Update codex-commit to $RELEASE_TAG" --body-file "$RUNNER_TEMP/pr-body.md" > "$RUNNER_TEMP/pr-url"
+            pr="$(cat "$RUNNER_TEMP/pr-url")"
+          fi
+          # Bot-created PR events can need approval. Explicit dispatch runs unattended.
+          # Do not repeatedly cancel a still-running native check on scheduled retries.
+          gh run list --workflow ci.yml --branch "$branch" --event workflow_dispatch --limit 100 \
+            --json headSha,status,conclusion > "$RUNNER_TEMP/ci-runs.json"
+          if ! jq -e --arg head "$head" '
+            any(.[]; .headSha == $head and (.status != "completed" or .conclusion == "success"))
+          ' "$RUNNER_TEMP/ci-runs.json" >/dev/null; then
+            gh workflow run ci.yml --ref "$branch"
+          fi
+          gh pr merge "$pr" --auto --squash --match-head-commit "$head"
