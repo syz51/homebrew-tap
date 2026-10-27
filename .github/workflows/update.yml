@@ -141,10 +141,9 @@ jobs:
     if: needs.prepare.outputs.changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: release-updates
     permissions:
-      contents: write
-      pull-requests: write
-      actions: write
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -155,9 +154,19 @@ jobs:
         with:
           name: verified-formula
           path: generated
+      - name: Create a token scoped to this tap
+        id: release-app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: syz51
+          repositories: homebrew-tap
+          permission-contents: write
+          permission-pull-requests: write
       - name: Update the release branch and enable protected auto-merge
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.release-app.outputs.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
@@ -213,13 +222,5 @@ jobs:
             gh pr create --head "$branch" --base main --title "Update codex-commit to $RELEASE_TAG" --body-file "$RUNNER_TEMP/pr-body.md" > "$RUNNER_TEMP/pr-url"
             pr="$(cat "$RUNNER_TEMP/pr-url")"
           fi
-          # Bot-created PR events can need approval. Explicit dispatch runs unattended.
-          # Do not repeatedly cancel a still-running native check on scheduled retries.
-          gh run list --workflow ci.yml --branch "$branch" --event workflow_dispatch --limit 100 \
-            --json headSha,status,conclusion > "$RUNNER_TEMP/ci-runs.json"
-          if ! jq -e --arg head "$head" '
-            any(.[]; .headSha == $head and (.status != "completed" or .conclusion == "success"))
-          ' "$RUNNER_TEMP/ci-runs.json" >/dev/null; then
-            gh workflow run ci.yml --ref "$branch"
-          fi
+          # App-authenticated push and PR events run the normal required PR checks.
           gh pr merge "$pr" --auto --squash --match-head-commit "$head"
