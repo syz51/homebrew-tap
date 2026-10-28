@@ -1,5 +1,5 @@
 class CodexCommit < Formula
-  desc "Commit Git changes with Codex Luna at Max reasoning, with optional push"
+  desc "Commit Git changes with Codex, with optional push"
   homepage "https://github.com/syz51/codex-commit"
   license "MIT"
 
@@ -7,12 +7,12 @@ class CodexCommit < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/syz51/codex-commit/releases/download/v0.3.0/codex-commit-v0.3.0-aarch64-apple-darwin.tar.gz"
-      sha256 "41144a5ebdd8e2f9152fb8d177096b7092d1a4f889cb03a5157c34a8c00e9179"
+      url "https://github.com/syz51/codex-commit/releases/download/v0.4.0/codex-commit-v0.4.0-aarch64-apple-darwin.tar.gz"
+      sha256 "701ab79a33f8e922c0c5e4cdece6a1a6e3c82767c8cd6fb9e86ef8d80c1f62b3"
     end
     on_intel do
-      url "https://github.com/syz51/codex-commit/releases/download/v0.3.0/codex-commit-v0.3.0-x86_64-apple-darwin.tar.gz"
-      sha256 "235255fcab19be8c2a0502dcbb580fa1f94f5a5cb91509bc9f1cab0999ca0699"
+      url "https://github.com/syz51/codex-commit/releases/download/v0.4.0/codex-commit-v0.4.0-x86_64-apple-darwin.tar.gz"
+      sha256 "fbd56e0a5586f7474994b96b4620d62fe5ed45828e044e4ad7407712b9af78bb"
     end
   end
 
@@ -25,12 +25,12 @@ class CodexCommit < Formula
     <<~EOS
       Git must be available on PATH; macOS Command Line Tools Git is supported.
       Install Codex CLI separately and run `codex login` before using codex-commit.
-      The default mode grants Codex full local command access. Use --push to enable pushing.
+      Sandbox settings follow your Codex configuration unless overridden. Use --push to enable pushing.
     EOS
   end
 
   test do
-    assert_match "codex-commit 0.3.0", shell_output("#{bin}/codex-commit --version")
+    assert_match "codex-commit 0.4.0", shell_output("#{bin}/codex-commit --version")
     assert_match "Usage:", shell_output("#{bin}/codex-commit --help")
     assert_match "#compdef codex-commit", (zsh_completion/"_codex-commit").read
     assert_match "--push", (zsh_completion/"_codex-commit").read
@@ -38,7 +38,7 @@ class CodexCommit < Formula
     assert_path_exists fish_completion/"codex-commit.fish"
     with_env(PATH: "/usr/bin:/bin") do
       system "git", "init", "-b", "main"
-      output = shell_output("#{bin}/codex-commit --dry-run")
+      output = shell_output("#{bin}/codex-commit --no-config --dry-run")
       assert_match "Push: disabled", output
       assert_match "Model: gpt-6-luna", output
       assert_match "Reasoning: max", output
