@@ -7,17 +7,18 @@ class CodexCommit < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/syz51/codex-commit/releases/download/v0.2.2/codex-commit-v0.2.2-aarch64-apple-darwin.tar.gz"
-      sha256 "d890ec5a59605b05aa62cf5d5917eeeb5400ac55c58e257eaceeb08748b9d1d8"
+      url "https://github.com/syz51/codex-commit/releases/download/v0.3.0/codex-commit-v0.3.0-aarch64-apple-darwin.tar.gz"
+      sha256 "41144a5ebdd8e2f9152fb8d177096b7092d1a4f889cb03a5157c34a8c00e9179"
     end
     on_intel do
-      url "https://github.com/syz51/codex-commit/releases/download/v0.2.2/codex-commit-v0.2.2-x86_64-apple-darwin.tar.gz"
-      sha256 "83efacab5ce7c3a9c5f6a6b2f63c4d545f38871374015e35824794d01d0af643"
+      url "https://github.com/syz51/codex-commit/releases/download/v0.3.0/codex-commit-v0.3.0-x86_64-apple-darwin.tar.gz"
+      sha256 "235255fcab19be8c2a0502dcbb580fa1f94f5a5cb91509bc9f1cab0999ca0699"
     end
   end
 
   def install
     bin.install "codex-commit"
+    generate_completions_from_executable(bin/"codex-commit", "--completions")
   end
 
   def caveats
@@ -29,8 +30,12 @@ class CodexCommit < Formula
   end
 
   test do
-    assert_match "codex-commit 0.2.2", shell_output("#{bin}/codex-commit --version")
+    assert_match "codex-commit 0.3.0", shell_output("#{bin}/codex-commit --version")
     assert_match "Usage:", shell_output("#{bin}/codex-commit --help")
+    assert_match "#compdef codex-commit", (zsh_completion/"_codex-commit").read
+    assert_match "--push", (zsh_completion/"_codex-commit").read
+    assert_path_exists bash_completion/"codex-commit"
+    assert_path_exists fish_completion/"codex-commit.fish"
     with_env(PATH: "/usr/bin:/bin") do
       system "git", "init", "-b", "main"
       output = shell_output("#{bin}/codex-commit --dry-run")
