@@ -7,12 +7,12 @@ class CodexCommit < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/syz51/codex-commit/releases/download/v0.5.0/codex-commit-v0.5.0-aarch64-apple-darwin.tar.gz"
-      sha256 "7ff29118dd5b8f22dc159494894f36f3010cdd9fd09aa0ee8209a34ebf5d17c7"
+      url "https://github.com/syz51/codex-commit/releases/download/v0.6.0/codex-commit-v0.6.0-aarch64-apple-darwin.tar.gz"
+      sha256 "8cf802b35781be7b53f29aab045bab1c391ede527352e645b45122d889549454"
     end
     on_intel do
-      url "https://github.com/syz51/codex-commit/releases/download/v0.5.0/codex-commit-v0.5.0-x86_64-apple-darwin.tar.gz"
-      sha256 "5dd78072fc4abe0eec936ac958adc5d725a6638e3dfcd95b53ca41b1a4e5bf50"
+      url "https://github.com/syz51/codex-commit/releases/download/v0.6.0/codex-commit-v0.6.0-x86_64-apple-darwin.tar.gz"
+      sha256 "1de262bc424924a7ee05b4d3530b225683c34d4d600f6f008c811d6bc86ac099"
     end
   end
 
@@ -30,7 +30,7 @@ class CodexCommit < Formula
   end
 
   test do
-    assert_match "codex-commit 0.5.0", shell_output("#{bin}/codex-commit --version")
+    assert_match "codex-commit 0.6.0", shell_output("#{bin}/codex-commit --version")
     assert_match "Usage:", shell_output("#{bin}/codex-commit --help")
     assert_match "#compdef codex-commit", (zsh_completion/"_codex-commit").read
     assert_match "--push", (zsh_completion/"_codex-commit").read
