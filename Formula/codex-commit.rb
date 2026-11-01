@@ -7,12 +7,12 @@ class CodexCommit < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/syz51/codex-commit/releases/download/v0.6.3/codex-commit-v0.6.3-aarch64-apple-darwin.tar.gz"
-      sha256 "a07da94e0abf6b2297b22e6ccad25a5898f993924c3622c4a75a712860ed5273"
+      url "https://github.com/syz51/codex-commit/releases/download/v0.6.4/codex-commit-v0.6.4-aarch64-apple-darwin.tar.gz"
+      sha256 "3b6aaa181928f5be4a3bda124e788d69882832f58ae974b34d214623aacc7e0b"
     end
     on_intel do
-      url "https://github.com/syz51/codex-commit/releases/download/v0.6.3/codex-commit-v0.6.3-x86_64-apple-darwin.tar.gz"
-      sha256 "e53c78dfa07fa414eca1c6faa2e16e2b37da8560f4043952f8220b14debfaeb6"
+      url "https://github.com/syz51/codex-commit/releases/download/v0.6.4/codex-commit-v0.6.4-x86_64-apple-darwin.tar.gz"
+      sha256 "1ad0db069fbdd526f7c5d3974c73c39dc5c3c83171b866945a499ef37c535edb"
     end
   end
 
@@ -30,7 +30,7 @@ class CodexCommit < Formula
   end
 
   test do
-    assert_match "codex-commit 0.6.3", shell_output("#{bin}/codex-commit --version")
+    assert_match "codex-commit 0.6.4", shell_output("#{bin}/codex-commit --version")
     assert_match "Usage:", shell_output("#{bin}/codex-commit --help")
     assert_match "#compdef codex-commit", (zsh_completion/"_codex-commit").read
     assert_match "--push", (zsh_completion/"_codex-commit").read
@@ -41,7 +41,7 @@ class CodexCommit < Formula
       output = shell_output("#{bin}/codex-commit --no-config --dry-run")
       assert_match "Push: disabled", output
       assert_match "Model: gpt-6-luna", output
-      assert_match "Reasoning: max", output
+      assert_match "Reasoning: low", output
     end
   end
 end
