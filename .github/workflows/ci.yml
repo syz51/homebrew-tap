@@ -48,21 +48,55 @@ jobs:
         with:
           path: ${{ steps.gems.outputs.path }}
           key: ${{ steps.gems.outputs.key }}
+      - name: Verify agent-desktop formula renderer consistency
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/render-agent-desktop.sh
+          version="$(sed -nE 's@.*releases/download/v([0-9]+\.[0-9]+\.[0-9]+)/.*@\1@p' Formula/agent-desktop.rb | sort -u)"
+          awk '
+            /url "/ {
+              file = $0
+              sub(/^.*\//, "", file)
+              sub(/".*$/, "", file)
+            }
+            /sha256 "/ {
+              sha = $0
+              sub(/^.*sha256 "/, "", sha)
+              sub(/".*$/, "", sha)
+              print sha "  " file
+            }
+          ' Formula/agent-desktop.rb > "$RUNNER_TEMP/agent-desktop.SHA256SUMS"
+          bash scripts/render-agent-desktop.sh \
+            --version "$version" \
+            --checksums "$RUNNER_TEMP/agent-desktop.SHA256SUMS" \
+            --output "$RUNNER_TEMP/agent-desktop.rb"
+          diff -u Formula/agent-desktop.rb "$RUNNER_TEMP/agent-desktop.rb"
       - name: Install this checkout as a tap
         run: brew tap --custom-remote syz51/tap "$GITHUB_WORKSPACE"
-      - name: Trust the reviewed formula when supported
+      - name: Trust the reviewed formulae when supported
+        shell: bash
         run: |
+          set -euo pipefail
           if brew help trust >/dev/null 2>&1; then
-            brew trust --formula syz51/tap/codex-commit
+            for formula in Formula/*.rb; do
+              name="$(basename "$formula" .rb)"
+              brew trust --formula "syz51/tap/$name"
+            done
           fi
-      - name: Install published native release
-        run: brew install syz51/tap/codex-commit
-      - name: Test installed command
-        run: brew test syz51/tap/codex-commit
-      - name: Check formula style
-        run: brew style syz51/tap/codex-commit
-      - name: Audit formula
-        run: brew audit --strict --online syz51/tap/codex-commit
+      - name: Install, test, style, and audit formulae
+        shell: bash
+        run: |
+          set -euo pipefail
+          for formula in Formula/*.rb; do
+            name="$(basename "$formula" .rb)"
+            echo "::group::Formula syz51/tap/$name"
+            brew install "syz51/tap/$name"
+            brew test "syz51/tap/$name"
+            brew style "syz51/tap/$name"
+            brew audit --strict --online "syz51/tap/$name"
+            echo "::endgroup::"
+          done
       - name: Save Homebrew's gem bundle from main
         if: github.ref == 'refs/heads/main' && steps.restore-gems.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
