@@ -5,23 +5,23 @@ class AgentDesktop < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/syz51/agent-desktop/releases/download/v0.2.0/agent-desktop-0.2.0-aarch64-apple-darwin.tar.gz"
-      sha256 "2f26156f930f465fbbbab531e792dc68316682e2e3665a8f295c9ef2dd3240f0"
+      url "https://github.com/syz51/agent-desktop/releases/download/v0.3.0/agent-desktop-0.3.0-aarch64-apple-darwin.tar.gz"
+      sha256 "77802d08ce9a6f2e9807ff3afd7e1ce18bca695e533fc66d1e5c5e8e1cab77a8"
     end
     on_intel do
-      url "https://github.com/syz51/agent-desktop/releases/download/v0.2.0/agent-desktop-0.2.0-x86_64-apple-darwin.tar.gz"
-      sha256 "70c6c22ed52be1d72f9704753f38e573636c777724b809b7ccb4fe4485ac5b8c"
+      url "https://github.com/syz51/agent-desktop/releases/download/v0.3.0/agent-desktop-0.3.0-x86_64-apple-darwin.tar.gz"
+      sha256 "12412cc99966bb62124a9bd8075b3dde3a202fe08232559723688c5ba244ccec"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/syz51/agent-desktop/releases/download/v0.2.0/agent-desktop-0.2.0-aarch64-unknown-linux-gnu.tar.gz"
-      sha256 "5bd8b2b7fce3f40bd173ab32a696cf798375436f292d6d463f8ec13555c61878"
+      url "https://github.com/syz51/agent-desktop/releases/download/v0.3.0/agent-desktop-0.3.0-aarch64-unknown-linux-gnu.tar.gz"
+      sha256 "d0be20ed560ea4462d1e3c17a062c13354e9ba229a350ef35173e60b83fd5d9a"
     end
     on_intel do
-      url "https://github.com/syz51/agent-desktop/releases/download/v0.2.0/agent-desktop-0.2.0-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "6f522f4e64c975de5b4845c2bbc0f75c38c2da6be4256e8731e33ebb722ca443"
+      url "https://github.com/syz51/agent-desktop/releases/download/v0.3.0/agent-desktop-0.3.0-x86_64-unknown-linux-gnu.tar.gz"
+      sha256 "9e3eede2f4c23740d72e82d96061b7a73e4bc49a7273e0b4328f8cdd72c073c2"
     end
   end
 
@@ -41,8 +41,8 @@ class AgentDesktop < Formula
   end
 
   test do
-    assert_match "desktop 0.2.0", shell_output("#{bin}/desktop --version")
-    assert_match "desktopd 0.2.0", shell_output("#{bin}/desktopd --version")
+    assert_match "desktop 0.3.0", shell_output("#{bin}/desktop --version")
+    assert_match "desktopd 0.3.0", shell_output("#{bin}/desktopd --version")
     assert_match "Usage:", shell_output("#{bin}/desktop --help")
     assert_match "Usage:", shell_output("#{bin}/desktopd --help")
   end
